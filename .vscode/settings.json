@@ -1,0 +1,5 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+    "idf.portWin": "COM10",
+    "idf.port": "/dev/ttyUSB0"
+}

@@ -3,43 +3,97 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-
-
-esp_err_t btn_init(button_t* btn, gpio_num_t pin)
+esp_err_t btn_init(button_t *btn, gpio_num_t pin)
 {
-    gpio_config_t config = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_INPUT,
+    gpio_config_t cfg = {
         .pin_bit_mask = 1ULL << pin,
+        .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE
-    };
-    btn->pin = pin;
-    btn->last_read = gpio_get_level(pin);
-    btn->last_tick = xTaskGetTickCount();
-    btn->stable_state = btn->last_read;
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
 
-    return gpio_config(&config);
+    ESP_ERROR_CHECK(gpio_config(&cfg));
+
+    int level = gpio_get_level(pin);
+
+    btn->pin = pin;
+    btn->last_raw = level;
+    btn->last_debounce = xTaskGetTickCount();
+
+    btn->state = BTN_STATE_IDLE;
+    btn->press_tick = 0;
+    btn->last_click_tick = 0;
+    btn->click_count = 0;
+    btn->long_sent = 0;
+
+    return ESP_OK;
 }
 
-
-int btn_read(button_t* btn)
+btn_event_t btn_read(button_t *btn)
 {
-    int current = gpio_get_level(btn->pin);
+    int raw = gpio_get_level(btn->pin);
     TickType_t now = xTaskGetTickCount();
 
-    if (current != btn->last_read)
+    /* debounce raw */
+    if (raw != btn->last_raw)
     {
-        btn->last_read = current;
-        btn->last_tick = now;
-        return BTN_NONE;
+        btn->last_raw = raw;
+        btn->last_debounce = now;
+        return BTN_EVT_NONE;
     }
-    if ((now - btn->last_tick) * portTICK_PERIOD_MS >= DEBOUNCE_MS)
+
+    if ((now - btn->last_debounce) < pdMS_TO_TICKS(DEBOUNCE_MS))
+        return BTN_EVT_NONE;
+
+    switch (btn->state)
     {
-        if (btn->stable_state != current) {
-            btn->stable_state = current;
-            return (btn->stable_state == 1) ? BTN_PRESS : BTN_RELEASE;
+
+    case BTN_STATE_IDLE:
+        if (raw == 0)
+        {
+            btn->state = BTN_STATE_PRESSED;
+            btn->press_tick = now;
+            btn->long_sent = 0;
         }
+        break;
+
+    case BTN_STATE_PRESSED:
+
+        if (!btn->long_sent &&
+            (now - btn->press_tick) >= pdMS_TO_TICKS(BTN_LONG_MS))
+        {
+
+            btn->long_sent = 1;
+            btn->click_count = 0;
+            return BTN_EVT_LONG;
+        }
+
+        if (raw == 1)
+        {
+            btn->state = BTN_STATE_IDLE;
+
+            if (btn->long_sent)
+                break;
+
+            btn->click_count++;
+            btn->last_click_tick = now;
+
+            if (btn->click_count == 2)
+            {
+                btn->click_count = 0;
+                return BTN_EVT_DOUBLE;
+            }
+        }
+        break;
     }
-    return BTN_NONE;
+
+    if (btn->click_count == 1 &&
+        (now - btn->last_click_tick) > pdMS_TO_TICKS(BTN_DOUBLE_MS))
+    {
+
+        btn->click_count = 0;
+        return BTN_EVT_PRESS;
+    }
+
+    return BTN_EVT_NONE;
 }

@@ -2,6 +2,12 @@
 #define LED_H
 #include "driver/gpio.h"
 
-esp_err_t led_init(gpio_num_t gpio_num);
-esp_err_t led_set_level(gpio_num_t gpio_num, int level);
+typedef struct led_t {
+    int led_state;
+    gpio_num_t pin;
+} led_t;
+
+
+esp_err_t led_init(led_t* led, gpio_num_t gpio_num);
+esp_err_t led_toggle(led_t* led);
 #endif

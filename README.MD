@@ -11,16 +11,6 @@
 
 ---
 
-## 🎬 Demo
-
-<p align="center">
-  <img src="assets/demo.gif" width="700">
-</p>
-
-This demo demonstrates stable button state detection under real mechanical noise conditions, without blocking the CPU or abusing delays.
-
----
-
 ## 📐 Hardware Design
 
 <p align="center">
@@ -58,8 +48,8 @@ The hardware setup represents a typical push-button input with pull-up configura
 ## 🚀 Getting Started
 
 ```bash
-git clone https://github.com/your-username/gpio-debounce-esp32.git
-cd gpio-debounce-esp32
+git clone https://github.com/ducdz1m2/debouce-gpio.git
+cd debouce-gpio
 idf.py build
 idf.py flash
 idf.py monitor
